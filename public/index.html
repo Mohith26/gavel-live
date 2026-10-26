@@ -33,6 +33,7 @@
       <button id="pasteToggle" class="link-btn" type="button" style="padding-left:0">No link? Paste a transcript instead</button>
       <span>About a minute per hour of audio. Results are saved and shareable.</span>
     </div>
+    <label class="opt-row"><input type="checkbox" id="wantDoc"><span>Also build a summary document (overview, takeaways, sections, terms, numbers; every point linked to the moment it comes from)</span></label>
     <div id="pasteBox" class="paste hidden">
       <label>Title (optional)</label>
       <input id="pasteTitle" type="text" placeholder="Lecture 3: Gradient descent">
@@ -75,6 +76,7 @@
       <label class="toggle"><input type="checkbox" id="followAudio" checked><span>Follow the audio</span></label>
       <label class="toggle"><input type="checkbox" id="onlyFlagged"><span>Only flagged</span></label>
       <span class="spacer"></span>
+      <a id="docBtn" class="btn sum-cta" href="#">Summary document ▸</a>
       <button id="share" class="btn ghost" type="button">Copy link</button>
       <button id="rerun" class="btn ghost" type="button">Re-run</button>
     </div>

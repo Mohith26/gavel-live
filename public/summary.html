@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Summary · Gavel Live</title>
+<meta name="description" content="A visual summary of a recording where every point links to the moment it comes from.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="doc-body">
+<header class="top">
+  <a class="brand" href="/"><span class="mark"></span><span>Gavel <em>Live</em></span></a>
+  <nav>
+    <a id="reportLink" href="/">Claim report</a>
+    <a href="/how">How it works</a>
+    <button id="printBtn" class="link-btn" type="button">Print / PDF</button>
+    <button id="shareBtn" class="link-btn" type="button">Copy link</button>
+  </nav>
+</header>
+
+<main class="doc-main">
+  <section id="progress" class="progress">
+    <div class="prog-head"><h3 id="progTitle">Building the summary document</h3><span id="progKicker" class="mono" style="font-size:12px;color:var(--muted)"></span></div>
+    <div class="steps steps-3">
+      <div class="step" data-stage="write"><span class="dot"></span>Write the document</div>
+      <div class="step" data-stage="evidence"><span class="dot"></span>Link every point to evidence</div>
+      <div class="step" data-stage="done"><span class="dot"></span>Ready</div>
+    </div>
+    <p id="progNote" class="prog-note"></p>
+    <div id="progDoc" class="prog-claims"></div>
+    <div id="progErr" class="err-box hidden"></div>
+  </section>
+
+  <article id="doc" class="doc hidden">
+    <div class="doc-grid">
+      <div class="doc-col">
+        <header class="doc-head">
+          <p class="meta" id="dMeta"></p>
+          <h1 id="dTitle"></h1>
+          <p class="overview" id="dOverview"></p>
+          <div class="doc-stats" id="dStats"></div>
+        </header>
+
+        <section class="doc-sec">
+          <h2><span class="num">01</span>Takeaways</h2>
+          <ol class="takeaways" id="dTakeaways"></ol>
+        </section>
+
+        <section class="doc-sec">
+          <h2><span class="num">02</span>Section by section</h2>
+          <div class="timeline" id="dTimeline"></div>
+          <div class="sections" id="dSections"></div>
+        </section>
+
+        <section class="doc-sec" id="dTermsSec">
+          <h2><span class="num">03</span>Terms and names</h2>
+          <div class="terms" id="dTerms"></div>
+        </section>
+
+        <section class="doc-sec" id="dNumbersSec">
+          <h2><span class="num">04</span>Numbers mentioned</h2>
+          <ul class="numbers" id="dNumbers"></ul>
+        </section>
+
+        <p class="keys doc-foot">Every point was checked against the transcript by the same judge as the claim report: <span class="dotkey ok"></span> supported, <span class="dotkey warn"></span> partly, <span class="dotkey bad"></span> not found or contradicted. Click a timestamp to hear it. <a id="reportLink2" href="/">Open the claim-by-claim report</a>.</p>
+      </div>
+
+      <aside class="doc-side">
+        <div class="side-sticky">
+          <div id="player" class="player"></div>
+          <div class="evidence-card" id="evCard"><p class="ev-empty">Click any point to see the exact passage it comes from.</p></div>
+        </div>
+      </aside>
+    </div>
+  </article>
+</main>
+
+<footer>
+  <span>Gavel Live by <a href="https://mohithgajjela.com">Mohith Gajjela</a>. Not medical or legal advice.</span>
+  <span><a href="/how">How it works</a> · <a href="https://github.com/Mohith26/gavel-live">Code</a></span>
+</footer>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="/summary.js"></script>
+</body>
+</html>

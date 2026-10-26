@@ -3,6 +3,7 @@ import { fetchYouTube, parseVideoId, innertubePlayer, CLIENT_ORDER, timedtextDir
 import { parsePastedTranscript } from './segment';
 import { runPipeline, judgeOne } from './pipeline';
 import { GeminiError } from './gemini';
+import { buildSummaryDoc } from './summary';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 const json = (data: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(data), { status, headers: { ...JSON_HEADERS, ...extra } });
@@ -13,6 +14,7 @@ async function sha1(s: string): Promise<string> {
 }
 
 function resultKey(env: Env, id: string) { return `res:${env.RESULT_VERSION}:${id}`; }
+function summaryKey(env: Env, id: string) { return `sum:${env.RESULT_VERSION}:${id}`; }
 
 async function bump(env: Env, key: string, ttl: number): Promise<number> {
   const n = (+(await env.KV.get(key) ?? '0')) + 1;
@@ -64,6 +66,21 @@ export default {
 
     if (p === '/api/analyze' && req.method === 'POST') {
       return analyze(req, env, ctx);
+    }
+
+    // Summary document: built from a cached result, cached itself, served at /s/<id>.
+    if (p.startsWith('/api/summary/') && (req.method === 'GET' || req.method === 'HEAD')) {
+      const id = p.slice('/api/summary/'.length);
+      const r = await env.KV.get(summaryKey(env, id));
+      if (!r) return json({ error: 'not found' }, 404);
+      return new Response(req.method === 'HEAD' ? null : r, { headers: { ...JSON_HEADERS, 'cache-control': 'public, max-age=300' } });
+    }
+    if (p === '/api/summarize' && req.method === 'POST') {
+      return summarize(req, env, ctx);
+    }
+    if (p.startsWith('/s/')) {
+      const r = await env.ASSETS.fetch(new Request(new URL('/summary.html', req.url), { headers: req.headers }));
+      return new Response(r.body, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
     }
 
     if (p === '/how' || p === '/how/') {
@@ -154,6 +171,41 @@ async function analyze(req: Request, env: Env, ctx: ExecutionContext): Promise<R
   })();
   ctx.waitUntil(work);
 
+  return new Response(readable, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-accel-buffering': 'no' } });
+}
+
+async function summarize(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  let body: { id?: string; force?: boolean };
+  try { body = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
+  if (!body.id) return json({ error: 'need id' }, 400);
+  const id = body.id;
+  const byok = req.headers.get('x-gemini-key')?.trim() || null;
+  const apiKey = byok || env.GEMINI_API_KEY;
+  const ip = req.headers.get('cf-connecting-ip') ?? 'unknown';
+
+  const enc = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const send = (event: string, data: unknown) => writer.write(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)).catch(() => {});
+  const work = (async () => {
+    try {
+      if (!body.force) { const cached = await env.KV.get(summaryKey(env, id)); if (cached) { await send('stage', { stage: 'cache', msg: 'Loaded from cache' }); await send('doc_result', JSON.parse(cached)); return; } }
+      const raw = await env.KV.get(resultKey(env, id)); if (!raw) throw new Error('Check the recording first; there is no saved analysis for it.');
+      const result = JSON.parse(raw) as Result;
+      const day = new Date().toISOString().slice(0, 10);
+      const ipN = await bump(env, `ip:${ip}:${new Date().toISOString().slice(0, 13)}`, 3700);
+      if (ipN > +env.IP_HOURLY_CAP && !byok) throw new Error(`Rate limit: ${env.IP_HOURLY_CAP} runs per hour per IP. Add your own Gemini key to lift it.`);
+      if (!byok) { const dN = await bump(env, `day:${day}`, 90_000); if (dN > +env.DAILY_CAP) throw new Error('The free daily budget is used up. Add your own Gemini key (it is never stored) to keep going.'); }
+      const doc = await buildSummaryDoc(env, apiKey, result, (event, data) => { void send(event, data); });
+      await env.KV.put(summaryKey(env, id), JSON.stringify(doc), { expirationTtl: 60 * 60 * 24 * 45 });
+      await send('doc_result', doc);
+    } catch (e) {
+      const err = e as Error;
+      const msg = err instanceof GeminiError ? (err.status === 429 ? 'The model is rate-limited right now (free tier). Try again in a minute or add your own Gemini key.' : `Model error: ${err.message}`) : err.message;
+      await send('error', { message: msg });
+    } finally { await writer.close().catch(() => {}); }
+  })();
+  ctx.waitUntil(work);
   return new Response(readable, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-accel-buffering': 'no' } });
 }
 

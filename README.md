@@ -35,6 +35,15 @@ scripts/smoke.mjs end-to-end run against a deployment
 scripts/seed.mjs  fetch captions from a residential IP and push them to the Worker (YouTube bot-checks datacenter IPs)
 ```
 
+
+## Summary document (`/s/<id>`)
+
+Besides the claim-by-claim report, any checked recording can be turned into a **summary document**: an overview paragraph, 4-6 takeaways, the recording split into chronological sections (each with a time range, a one-line gist and 2-5 points), terms and names as explained in the recording, and the numbers mentioned. Every one of those points goes through the same BM25 + judge path as the report, so each carries a timestamp, a verbatim quote and a support dot (green supported, amber partly, red not found or contradicted). Clicking a point shows the exact passage with the quote highlighted in a sticky side panel next to the embedded video; clicking a timestamp seeks the video.
+
+- Tick "Also build a summary document" under the URL box and the document opens automatically once the check finishes; the setting is remembered. Otherwise the "Summary document" button on the report builds it on demand.
+- `POST /api/summarize {id}` streams progress (write, link evidence, done) and caches the document under `sum:<version>:<id>` for 45 days; `GET /api/summary/<id>` returns it. The page is printable (Print / PDF strips the chrome).
+- Cost: 1 writing call plus one judge call per 6 points (about 5-8 calls for a lecture), counted against the same per-IP and daily caps as a check. Expect roughly 1.5-2.5 minutes for a long recording; the writing call is the slow part.
+
 ## Known limits
 
 - **YouTube blocks datacenter IPs intermittently** ("Sign in to confirm you're not a bot"). The Worker retries a client cascade in rounds and falls back to mirrors; when all of that fails the UI tells you to paste the transcript from YouTube's "Show transcript" panel together with the link, which still embeds the video. The example videos are pre-seeded from a residential IP with `scripts/seed.mjs`.

@@ -12,6 +12,9 @@ const EXAMPLES = [
   { id: 'L2bxwnm7JG4', label: 'What is Ocean Acidification?', kind: 'Explainer · 1m 43s' },
 ];
 
+const WANT_DOC = 'gavel.wantDoc';
+$('#wantDoc').checked = localStorage.getItem(WANT_DOC) === '1';
+$('#wantDoc').onchange = e => localStorage.setItem(WANT_DOC, e.target.checked ? '1' : '0');
 const S = { result: null, userClaims: [], sensitive: localStorage.getItem('gavel.sensitive') === '1', selected: null, onlyFlagged: false, follow: true, player: null, playerReady: false, tick: null, lastTranscript: '' };
 
 /* settings */
@@ -41,6 +44,7 @@ fetch('/api/recent').then(r => r.json()).then(list => {
 /* analyze (SSE over fetch) */
 async function analyze(body) {
   if (body.transcript) S.lastTranscript = body.transcript;
+  S.autoDoc = $('#wantDoc').checked;
   showProgress(body.url ? 'Checking the video' : (body.title || 'Checking the transcript'));
   $('#go').disabled = true;
   const headers = { 'content-type': 'application/json' };
@@ -95,6 +99,9 @@ function render(result) {
   $('#sensitive').checked = S.sensitive;
   history.replaceState(null, '', '/v/' + src.id);
   renderScore(); renderTurns(); renderClaims(); setupPlayer();
+  $('#docBtn').href = '/s/' + src.id;
+  fetch('/api/summary/' + src.id, { method: 'HEAD' }).then(r => { $('#docBtn').textContent = r.ok ? 'Summary document ▸' : 'Build a summary document ▸'; }).catch(() => {});
+  if (S.autoDoc) { S.autoDoc = false; location.href = '/s/' + src.id; return; }
   $('#result').scrollIntoView({ block: 'start' });
 }
 function renderScore() {
