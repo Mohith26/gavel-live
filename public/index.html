@@ -3,109 +3,111 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gavel Live: every claim traced back to the audio</title>
-<meta name="description" content="Paste a YouTube lecture, podcast or talk. Gavel writes a claim-by-claim report and checks every claim against the transcript, so you can click a sentence and hear exactly what it is citing.">
+<title>Gavel Live: check what a video actually says</title>
+<meta name="description" content="Paste a YouTube lecture, podcast or talk. Gavel writes a short claim-by-claim report and checks every claim against the transcript, so you can click a sentence and hear exactly what it is based on.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="/"><span class="gavel-mark"></span><span>GAVEL <em>LIVE</em></span></a>
+  <a class="brand" href="/"><span class="mark"></span><span>Gavel <em>Live</em></span></a>
   <nav>
-    <a href="https://mohithgajjela.com/field-03-gavel" target="_blank" rel="noopener">THE BENCHMARK</a>
-    <a href="https://github.com/Mohith26/gavel" target="_blank" rel="noopener">CODE</a>
-    <button id="keyBtn" class="link-btn" type="button">YOUR KEY</button>
+    <a href="/how">How it works</a>
+    <a href="https://mohithgajjela.com/field-03-gavel" target="_blank" rel="noopener">The benchmark</a>
+    <a href="https://github.com/Mohith26/gavel-live" target="_blank" rel="noopener">Code</a>
+    <button id="keyBtn" class="link-btn" type="button">Settings</button>
   </nav>
 </header>
 
 <main id="app">
   <section id="hero" class="hero">
-    <p class="kicker">01 THE TOOL · EVERY CLAIM TRACED BACK TO AUDIO</p>
-    <h1>Paste a lecture, a podcast, a talk.<br>Get a report you can audit sentence by sentence.</h1>
-    <p class="lede">Gavel writes a claim-by-claim bench report of the recording, retrieves the transcript passages each claim leans on, and has a judge decide whether the passage actually supports it. Click any claim and the video jumps to the evidence. Claims the transcript does not back are flagged, and you can see why.</p>
+    <span class="eyebrow">Every claim traced back to the audio</span>
+    <h1>Check what a lecture, podcast or talk actually says.</h1>
+    <p class="lede">Paste a YouTube link. You get a short report of the recording where every sentence is checked against the transcript. Click a sentence to jump to the moment it comes from. Sentences the recording does not support are flagged, with the reason.</p>
     <form id="form" class="input-row" autocomplete="off">
-      <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=…   (needs captions; auto-generated is fine)" spellcheck="false">
-      <button id="go" type="submit">ANALYZE</button>
+      <input id="url" type="text" placeholder="Paste a YouTube link (it needs captions, auto-generated is fine)" spellcheck="false">
+      <button id="go" class="btn" type="submit">Check it</button>
     </form>
-    <div class="row-between">
-      <button id="pasteToggle" class="link-btn" type="button">OR PASTE A TRANSCRIPT</button>
-      <span class="hint">Free tier, about a minute per hour of audio. Results are cached and shareable.</span>
+    <div class="under">
+      <button id="pasteToggle" class="link-btn" type="button" style="padding-left:0">No link? Paste a transcript instead</button>
+      <span>About a minute per hour of audio. Results are saved and shareable.</span>
     </div>
     <div id="pasteBox" class="paste hidden">
-      <input id="pasteTitle" type="text" placeholder="Title (optional)">
-      <textarea id="pasteText" rows="8" placeholder="Plain text, SRT, WebVTT, or lines like  [12:30] Speaker: text"></textarea>
-      <button id="pasteGo" type="button">ANALYZE TRANSCRIPT</button>
+      <label>Title (optional)</label>
+      <input id="pasteTitle" type="text" placeholder="Lecture 3: Gradient descent">
+      <label>Transcript. Plain text works. So do SRT, WebVTT, lines like <code>[12:30] Speaker: text</code>, or a copy of YouTube's "Show transcript" panel. If you also paste the YouTube link above, the video will play alongside.</label>
+      <textarea id="pasteText" placeholder="Paste the transcript here"></textarea>
+      <div><button id="pasteGo" class="btn" type="button">Check the transcript</button></div>
     </div>
-    <div class="examples">
-      <span class="kicker">TRY ONE</span>
-      <div id="examples" class="chips"></div>
-    </div>
-    <div id="recent" class="recent hidden"><span class="kicker">RECENTLY ANALYZED</span><div id="recentChips" class="chips"></div></div>
+  </section>
+  <section id="exampleSection">
+    <p class="section-title" style="margin-top:8px">Try an example</p>
+    <div id="examples" class="cards"></div>
+    <div id="recent" class="hidden"><p class="section-title">Recently checked</p><div id="recentChips" class="cards"></div></div>
   </section>
 
   <section id="progress" class="progress hidden">
-    <div class="prog-head"><span class="kicker" id="progKicker">WORKING</span><span id="progTitle" class="mono"></span></div>
-    <ol id="progLog" class="prog-log"></ol>
+    <div class="prog-head"><h3 id="progTitle">Working</h3><span id="progKicker" class="mono" style="font-size:12px;color:var(--muted)"></span></div>
+    <div class="steps">
+      <div class="step" data-stage="fetch"><span class="dot"></span>Get the transcript</div>
+      <div class="step" data-stage="summary"><span class="dot"></span>Write the claims</div>
+      <div class="step" data-stage="retrieve"><span class="dot"></span>Find the evidence</div>
+      <div class="step" data-stage="judge"><span class="dot"></span>Judge each claim</div>
+    </div>
+    <p id="progNote" class="prog-note"></p>
     <div id="progClaims" class="prog-claims"></div>
+    <div id="progErr" class="err-box hidden"></div>
   </section>
 
   <section id="result" class="result hidden">
     <div class="result-head">
       <div>
-        <p class="kicker" id="rKicker"></p>
+        <p class="meta" id="rMeta"></p>
         <h2 id="rTitle"></h2>
         <p id="rSummary" class="summary"></p>
       </div>
-      <div class="stats" id="rStats"></div>
+      <div class="scorecard" id="rScore"></div>
     </div>
     <div class="toolbar">
-      <div class="seg" id="opToggle" role="radiogroup" aria-label="Operating point">
-        <button type="button" data-op="strict" class="on">STRICT <small>precision 0.997 · FPR 0.003 · recall 0.44</small></button>
-        <button type="button" data-op="sensitive">SENSITIVE <small>precision 0.71 · FPR 0.72 · recall 0.97</small></button>
-      </div>
-      <label class="toggle"><input type="checkbox" id="followAudio" checked><span>FOLLOW AUDIO</span></label>
-      <label class="toggle"><input type="checkbox" id="onlyFlagged"><span>ONLY FLAGGED</span></label>
-      <button id="share" class="link-btn" type="button">COPY SHARE LINK</button>
-      <button id="rerun" class="link-btn" type="button">RE-RUN</button>
+      <label class="toggle"><input type="checkbox" id="sensitive"><span>Also flag partial support</span></label>
+      <span class="help">?<span class="tip">Off: only claims the transcript does not support, contradicts, or attributes to the wrong speaker are flagged. On the benchmark that catches 44% of planted errors with almost no false alarms (precision 0.997). On: claims that are only partly supported are flagged too, which catches 97% of errors but also flags most correct claims (72%).</span></span>
+      <label class="toggle"><input type="checkbox" id="followAudio" checked><span>Follow the audio</span></label>
+      <label class="toggle"><input type="checkbox" id="onlyFlagged"><span>Only flagged</span></label>
+      <span class="spacer"></span>
+      <button id="share" class="btn ghost" type="button">Copy link</button>
+      <button id="rerun" class="btn ghost" type="button">Re-run</button>
     </div>
     <div class="panes">
       <div class="pane left">
-        <div class="pane-head"><span>SOURCE</span><span id="srcMeta" class="mono"></span></div>
+        <div class="pane-head"><span>Recording</span><span id="srcMeta"></span></div>
         <div id="player" class="player"></div>
         <div id="turns" class="turns"></div>
       </div>
       <div class="pane right">
-        <div class="pane-head"><span>GENERATED BENCH REPORT</span><span id="claimCount" class="mono"></span></div>
+        <div class="pane-head"><span>Report</span><span id="claimCount"></span></div>
         <form id="checkForm" class="check" autocomplete="off">
-          <input id="checkInput" type="text" placeholder="Check a claim of your own: 'The speaker says validation loss reached 1.2'" spellcheck="false">
-          <button id="checkGo" type="submit">VERIFY</button>
+          <input id="checkInput" type="text" placeholder="Check a claim of your own, e.g. 'The speaker says the model reached a loss of 1.2'" spellcheck="false">
+          <button id="checkGo" class="btn" type="submit">Verify</button>
         </form>
         <div id="claims" class="claims"></div>
       </div>
     </div>
-    <p class="keys mono">Keyboard: J and K move between claims, E plays the evidence for the selected claim, space toggles playback. The judge is a hosted model reading only the retrieved passages; verdicts are recorded once and cached.</p>
-  </section>
-
-  <section class="how">
-    <p class="kicker">02 HOW IT WORKS · AND WHAT THE NUMBERS MEAN</p>
-    <div class="how-grid">
-      <div><h3>Turns</h3><p>Captions are cut into 20 to 45 second turns at sentence boundaries, so every claim cites a short, playable span. Pasted transcripts keep their speakers.</p></div>
-      <div><h3>Claims</h3><p>A model writes 6 to 20 standalone claims that keep names, numbers and hedges exactly as spoken, plus a one-paragraph summary.</p></div>
-      <div><h3>Evidence</h3><p>BM25 over the turns, five candidates per claim. In the benchmark ablation, lexical retrieval alone scored as well as hybrid lexical plus dense (F1 0.83 vs 0.81), so there is no vector index here.</p></div>
-      <div><h3>Judge</h3><p>Each claim is judged only against its candidates: supported, partially supported, unsupported or contradicted, with attribution checked and a verbatim quote. A forgiving parser records whether each verdict parsed cleanly, was repaired, or was scavenged.</p></div>
-      <div><h3>Operating point</h3><p>The same verdicts, two thresholds. Measured on the <a href="https://mohithgajjela.com/field-03-gavel" target="_blank" rel="noopener">1,064-claim planted-error benchmark</a>: STRICT flags only unsupported, contradicted or misattributed claims (precision 0.997, 0.3% false alarms on clean claims, recall 0.44). SENSITIVE also flags partial support (recall 0.97, but 72% of clean claims get flagged). Moving the threshold changed the numbers more than changing the model did.</p></div>
-      <div><h3>Limits</h3><p>Auto-generated captions have no speakers, so attribution is only checked when the transcript names them. The judge sees retrieved passages, not the whole recording, so an omission is not an error it can see. Nothing here is medical or legal advice.</p></div>
-    </div>
+    <p class="keys"><kbd>J</kbd> <kbd>K</kbd> move between claims, <kbd>E</kbd> plays the evidence, <kbd>space</kbd> pauses. Verdicts come from a model reading only the retrieved passages, recorded once and saved. <a href="/how">How it works</a>.</p>
   </section>
 </main>
 
+<footer>
+  <span>Gavel Live by <a href="https://mohithgajjela.com">Mohith Gajjela</a>. Not medical or legal advice.</span>
+  <span><a href="/how">How it works</a> · <a href="https://mohithgajjela.com/field-03-gavel">Benchmark</a> · <a href="https://github.com/Mohith26/gavel-live">Code</a></span>
+</footer>
+
 <dialog id="keyDlg">
   <form method="dialog">
-    <p class="kicker">YOUR OWN GEMINI KEY</p>
-    <p>Optional. Lifts the free-tier caps. Sent with each request over HTTPS, kept only in this browser's localStorage, never stored on the server.</p>
+    <h3>Use your own Gemini key</h3>
+    <p>Optional. The shared key has a small daily budget. Your key is kept only in this browser and sent with each request over HTTPS; it is never stored on the server.</p>
     <input id="keyInput" type="password" placeholder="AIza…" autocomplete="off">
-    <div class="row-between"><button value="clear" id="keyClear" type="button" class="link-btn">CLEAR</button><button value="save" id="keySave">SAVE</button></div>
+    <div class="row-between"><button id="keyClear" type="button" class="link-btn">Clear</button><button id="keySave" class="btn">Save</button></div>
   </form>
 </dialog>
 

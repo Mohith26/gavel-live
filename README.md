@@ -14,6 +14,8 @@ Gavel Live is the product end of the Gavel benchmark. The benchmark measured how
 5. **Operating point.** Same verdicts, two thresholds, with the benchmark's measured numbers on the toggle. STRICT flags unsupported, contradicted or misattributed claims (precision 0.997, FPR 0.003, recall 0.44). SENSITIVE also flags partial support (recall 0.97, FPR 0.72).
 6. **Check your own claim.** Type any statement about the recording; it is retrieved and judged live and the video jumps to the evidence.
 
+A separate page, https://gavel.mohithgajjela.com/how, explains the pipeline visually: the five stages, a worked example with the real verdict, the eight error classes with per-class recall, the two operating points as animated meters, and the limits.
+
 Everything else: click a claim to highlight and seek to its evidence, "follow audio" highlights the turn being played, J/K/E/space keyboard, results cached 45 days and shareable at `/v/<videoId>`, a "recently analyzed" strip, bring-your-own Gemini key (kept in localStorage, sent per request, never stored).
 
 ## Stack
@@ -28,7 +30,7 @@ src/bm25.ts       tokenizer + BM25
 src/gemini.ts     generateContent client: JSON mode, timeout, backoff, fallback model
 src/judge.ts      judge prompt, response schema, forgiving parser
 src/pipeline.ts   summary -> claims -> retrieve -> judge -> decision rules -> stats; judgeOne for user claims
-public/           index.html, styles.css, app.js
+public/           index.html, how.html, styles.css, app.js (light theme, no framework)
 scripts/smoke.mjs end-to-end run against a deployment
 scripts/seed.mjs  fetch captions from a residential IP and push them to the Worker (YouTube bot-checks datacenter IPs)
 ```

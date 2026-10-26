@@ -1,50 +1,53 @@
-/* Gavel Live client. No framework; state is one object, render is explicit. */
+/* Gavel Live client. No framework; one state object, explicit render. */
 const $ = (s, el = document) => el.querySelector(s);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 
 const EXAMPLES = [
-  { id: 'kCc8FmEb1nY', label: 'Karpathy: Let\'s build GPT', kind: 'lecture · 1h56' },
-  { id: 'L2bxwnm7JG4', label: 'What is Ocean Acidification?', kind: 'explainer · 1:43' },
-  { id: 'aircAruvnKk', label: '3Blue1Brown: But what is a neural network?', kind: 'lecture · 18m' },
-  { id: 'zjkBMFhNj_g', label: 'Karpathy: Intro to LLMs', kind: 'talk · 59m' },
-  { id: 'L_Guz73e6fw', label: 'Lex Fridman with Sam Altman', kind: 'podcast · 2h24' },
+  { id: 'kCc8FmEb1nY', label: "Karpathy: Let's build GPT from scratch", kind: 'Lecture · 1h 56m' },
+  { id: 'L_Guz73e6fw', label: 'Lex Fridman with Sam Altman', kind: 'Podcast · 2h 24m' },
+  { id: 'aircAruvnKk', label: '3Blue1Brown: But what is a neural network?', kind: 'Lecture · 18m' },
+  { id: 'zjkBMFhNj_g', label: 'Karpathy: Intro to Large Language Models', kind: 'Talk · 59m' },
+  { id: 'L2bxwnm7JG4', label: 'What is Ocean Acidification?', kind: 'Explainer · 1m 43s' },
 ];
 
-const S = { userClaims: [], result: null, op: localStorage.getItem('gavel.op') || 'strict', selected: null, onlyFlagged: false, follow: true, player: null, playerReady: false, tick: null, es: null };
+const S = { result: null, userClaims: [], sensitive: localStorage.getItem('gavel.sensitive') === '1', selected: null, onlyFlagged: false, follow: true, player: null, playerReady: false, tick: null, lastTranscript: '' };
 
-/* ---------- key ---------- */
+/* settings */
 const keyDlg = $('#keyDlg');
 $('#keyBtn').onclick = () => { $('#keyInput').value = localStorage.getItem('gavel.key') || ''; keyDlg.showModal(); };
 $('#keySave').onclick = e => { e.preventDefault(); const v = $('#keyInput').value.trim(); if (v) localStorage.setItem('gavel.key', v); keyDlg.close(); };
 $('#keyClear').onclick = () => { localStorage.removeItem('gavel.key'); $('#keyInput').value = ''; keyDlg.close(); };
 
-/* ---------- input ---------- */
-$('#form').onsubmit = e => { e.preventDefault(); const u = $('#url').value.trim(); if (u) analyze({ url: u }); };
+/* input */
+$('#form').onsubmit = e => { e.preventDefault(); const u = $('#url').value.trim(); const t = $('#pasteText').value.trim(); if (u && t.length > 200) analyze({ url: u, transcript: t, title: $('#pasteTitle').value }); else if (u) analyze({ url: u }); };
 $('#pasteToggle').onclick = () => $('#pasteBox').classList.toggle('hidden');
-$('#pasteGo').onclick = () => { const t = $('#pasteText').value; if (t.trim().length < 200) return alert('Paste at least a few paragraphs.'); analyze({ transcript: t, title: $('#pasteTitle').value }); };
-$('#rerun').onclick = () => { if (!S.result) return; const src = S.result.source; analyze(src.kind === 'youtube' ? { url: src.url, force: true } : { transcript: S.lastTranscript || '', title: src.title, force: true }); };
-$('#share').onclick = async () => { if (!S.result) return; const link = location.origin + '/v/' + S.result.source.id; await navigator.clipboard.writeText(link).catch(() => {}); $('#share').textContent = 'COPIED'; setTimeout(() => $('#share').textContent = 'COPY SHARE LINK', 1400); };
+$('#pasteGo').onclick = () => { const t = $('#pasteText').value; const u = $('#url').value.trim(); if (t.trim().length < 200) return alert('Paste at least a few paragraphs.'); analyze(u ? { url: u, transcript: t, title: $('#pasteTitle').value } : { transcript: t, title: $('#pasteTitle').value }); };
+$('#rerun').onclick = () => { if (!S.result) return; const src = S.result.source; analyze(src.kind === 'youtube' && src.captionKind !== 'pasted' ? { url: src.url, force: true } : { url: src.url || undefined, transcript: S.lastTranscript, title: src.title, force: true }); };
+$('#share').onclick = async () => { if (!S.result) return; await navigator.clipboard.writeText(location.origin + '/v/' + S.result.source.id).catch(() => {}); $('#share').textContent = 'Copied'; setTimeout(() => $('#share').textContent = 'Copy link', 1400); };
 
-const exWrap = $('#examples');
-for (const ex of EXAMPLES) { const b = el('button', '', `${esc(ex.label)}<small>${esc(ex.kind)}</small>`); b.type = 'button'; b.onclick = () => { $('#url').value = 'https://www.youtube.com/watch?v=' + ex.id; analyze({ url: $('#url').value }); }; exWrap.appendChild(b); }
-
+function exampleCard(id, title, kind, onClick) {
+  const b = el('button', 'card', `<img src="https://i.ytimg.com/vi/${id}/mqdefault.jpg" alt=""><div class="body"><p class="t">${esc(title)}</p><div class="k">${esc(kind)}</div></div>`);
+  b.type = 'button'; b.onclick = onClick; return b;
+}
+for (const ex of EXAMPLES) $('#examples').appendChild(exampleCard(ex.id, ex.label, ex.kind, () => loadShared(ex.id, 'https://www.youtube.com/watch?v=' + ex.id)));
 fetch('/api/recent').then(r => r.json()).then(list => {
-  if (!list.length) return; $('#recent').classList.remove('hidden');
-  for (const r of list) { const b = el('button', '', `${esc(r.title).slice(0, 60)}<small>${r.flagged}/${r.claims} flagged</small>`); b.type = 'button'; b.onclick = () => loadShared(r.id); $('#recentChips').appendChild(b); }
+  const fresh = list.filter(r => !EXAMPLES.some(e => e.id === r.id)); if (!fresh.length) return;
+  $('#recent').classList.remove('hidden');
+  for (const r of fresh.slice(0, 5)) $('#recentChips').appendChild(exampleCard(r.id, r.title, `${r.flagged} of ${r.claims} flagged`, () => loadShared(r.id)));
 }).catch(() => {});
 
-/* ---------- analyze (SSE over fetch) ---------- */
+/* analyze (SSE over fetch) */
 async function analyze(body) {
   if (body.transcript) S.lastTranscript = body.transcript;
-  showProgress(body.url ? body.url : (body.title || 'Pasted transcript'));
+  showProgress(body.url ? 'Checking the video' : (body.title || 'Checking the transcript'));
   $('#go').disabled = true;
   const headers = { 'content-type': 'application/json' };
   const key = localStorage.getItem('gavel.key'); if (key) headers['x-gemini-key'] = key;
   let res;
   try { res = await fetch('/api/analyze', { method: 'POST', headers, body: JSON.stringify(body) }); }
-  catch (e) { logErr('Network error: ' + e.message); $('#go').disabled = false; return; }
+  catch (e) { showErr('Network error: ' + e.message); $('#go').disabled = false; return; }
   const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
   while (true) {
     const { value, done } = await reader.read(); if (done) break;
@@ -56,49 +59,54 @@ async function analyze(body) {
 function handleEvent(chunk) {
   const ev = /^event: (.*)$/m.exec(chunk)?.[1]; const dataLine = /^data: (.*)$/m.exec(chunk)?.[1]; if (!ev || !dataLine) return;
   const data = JSON.parse(dataLine);
-  if (ev === 'stage') logStage(data.stage, data.msg);
-  else if (ev === 'source') { $('#progTitle').textContent = data.title + (data.author ? ' · ' + data.author : ''); logStage('source', `${data.turns} turns from ${data.cues ?? '?'} caption cues (${data.captionKind}${data.language ? ', ' + data.language : ''})`); }
-  else if (ev === 'claims') { logStage('claims', `${data.count} claims drafted`); const box = $('#progClaims'); box.innerHTML = ''; data.claims.forEach((c, i) => { const d = el('div', '', `<span class="mono" style="color:var(--muted)">${String(c.id).padStart(2, '0')}</span>  ${esc(c.text)}`); d.style.animationDelay = (i * 60) + 'ms'; box.appendChild(d); }); }
-  else if (ev === 'judged') logStage('judge', `Judged ${data.done} / ${data.total}`);
-  else if (ev === 'error') logErr(data.message);
-  else if (ev === 'result') { logStage('done', 'Done'); setTimeout(() => render(data), 250); }
+  if (ev === 'stage') { if (data.stage === 'cache') return; setStep(data.stage === 'done' ? 'judge' : data.stage, data.stage === 'done' ? 'done' : 'active'); if (data.stage === 'done') markAllDone(); $('#progNote').textContent = data.msg.replace(/^Fetching captions: /, ''); }
+  else if (ev === 'source') { $('#progTitle').textContent = data.title; setStep('fetch', 'done'); $('#progNote').textContent = `${data.turns} passages` + (data.captionKind ? ` from ${data.captionKind === 'asr' ? 'auto-generated' : data.captionKind} captions` : ''); }
+  else if (ev === 'claims') { setStep('summary', 'done'); const box = $('#progClaims'); box.innerHTML = ''; data.claims.forEach((c, i) => { const d = el('div', '', esc(c.text)); d.style.animationDelay = (i * 50) + 'ms'; box.appendChild(d); }); }
+  else if (ev === 'judged') { setStep('judge', 'active'); $('#progNote').textContent = `Judged ${data.done} of ${data.total} claims`; }
+  else if (ev === 'error') showErr(data.message);
+  else if (ev === 'result') setTimeout(() => render(data), 300);
 }
-function showProgress(title) { $('#progress').classList.remove('hidden'); $('#result').classList.add('hidden'); $('#progLog').innerHTML = ''; $('#progClaims').innerHTML = ''; $('#progTitle').textContent = title; $('#progKicker').textContent = 'WORKING'; $('#progress').scrollIntoView({ block: 'start' }); }
-function logStage(stage, msg) {
-  const log = $('#progLog'); log.querySelectorAll('li.active').forEach(li => li.classList.replace('active', 'done'));
-  let li = log.querySelector(`li[data-stage="${stage}"]`);
-  if (!li) { li = el('li'); li.dataset.stage = stage; log.appendChild(li); }
-  li.textContent = msg; li.classList.remove('done'); li.classList.add(stage === 'done' ? 'done' : 'active');
-}
-function logErr(msg) { const li = el('li', 'err', esc(msg)); $('#progLog').appendChild(li); $('#progKicker').textContent = 'STOPPED'; }
+function showProgress(title) { $('#progress').classList.remove('hidden'); $('#result').classList.add('hidden'); $('#progErr').classList.add('hidden'); $('#progClaims').innerHTML = ''; $('#progNote').textContent = ''; $('#progTitle').textContent = title; $('#progKicker').textContent = ''; document.querySelectorAll('.step').forEach(s => s.className = 'step'); setStep('fetch', 'active'); $('#progress').scrollIntoView({ block: 'start' }); }
+function setStep(stage, state) { const s = document.querySelector(`.step[data-stage="${stage}"]`); if (!s) return; document.querySelectorAll('.step.active').forEach(x => { if (x !== s) x.className = 'step done'; }); s.className = 'step ' + state; }
+function markAllDone() { document.querySelectorAll('.step').forEach(s => s.className = 'step done'); }
+function showErr(msg) { const b = $('#progErr'); b.textContent = msg; b.classList.remove('hidden'); document.querySelectorAll('.step.active').forEach(x => x.className = 'step err'); }
 
-async function loadShared(id) {
-  showProgress('Loading ' + id); logStage('cache', 'Loading cached result');
-  const r = await fetch('/api/result/' + id); if (!r.ok) return logErr('No cached result for ' + id + '. Analyze it from the home page.');
-  render(await r.json());
+async function loadShared(id, fallbackUrl) {
+  showProgress('Loading saved result');
+  const r = await fetch('/api/result/' + id);
+  if (r.ok) return render(await r.json());
+  if (fallbackUrl) return analyze({ url: fallbackUrl });
+  showErr('No saved result for ' + id + '. Paste the link on the home page to check it.');
 }
 if (location.pathname.startsWith('/v/')) loadShared(location.pathname.slice(3));
 
-/* ---------- render ---------- */
+/* render */
+const LABEL = { SUPPORTED: ['Supported', 'ok'], PARTIALLY_SUPPORTED: ['Partly supported', 'partial'], UNSUPPORTED: ['Not supported', 'bad'], CONTRADICTED: ['Contradicted', 'bad'] };
+function flagged(c) { return S.sensitive ? c.flag_sensitive : c.flag_strict; }
+
 function render(result) {
   S.result = result; S.selected = null; S.userClaims = [];
   $('#progress').classList.add('hidden'); $('#result').classList.remove('hidden');
   const src = result.source, st = result.stats;
-  $('#rKicker').textContent = `${src.kind === 'youtube' ? 'YOUTUBE' : 'TRANSCRIPT'} · ${src.author ? src.author.toUpperCase() + ' · ' : ''}${src.duration ? fmt(src.duration) : ''} · ${src.captionKind.toUpperCase()} CAPTIONS · ${result.model.toUpperCase()}`;
+  const cap = src.captionKind === 'asr' ? 'auto-generated captions' : src.captionKind === 'pasted' ? 'pasted transcript' : 'captions';
+  $('#rMeta').textContent = [src.author, src.duration ? fmt(src.duration) : null, cap, `${st.turns} passages`, `${st.words.toLocaleString()} words`].filter(Boolean).join(' · ');
   $('#rTitle').textContent = src.title; $('#rSummary').textContent = result.summary;
-  $('#srcMeta').textContent = `${st.turns} turns · ${st.words.toLocaleString()} words`;
+  $('#srcMeta').textContent = src.kind === 'youtube' ? 'click a passage to jump there' : 'timestamps estimated';
+  $('#sensitive').checked = S.sensitive;
   history.replaceState(null, '', '/v/' + src.id);
-  renderStats(); renderOp(); renderTurns(); renderClaims(); setupPlayer();
+  renderScore(); renderTurns(); renderClaims(); setupPlayer();
   $('#result').scrollIntoView({ block: 'start' });
 }
-function flagged(c) { return S.op === 'strict' ? c.flag_strict : c.flag_sensitive; }
-function renderStats() {
-  const st = S.result.stats; const n = S.result.claims.filter(flagged).length;
-  $('#rStats').innerHTML = `<div class="flag"><b>${n}</b>flagged (${S.op})</div><div><b>${st.supported}</b>supported</div><div><b>${st.partial}</b>partial</div><div><b>${st.unsupported}</b>unsupported</div><div><b>${st.contradicted}</b>contradicted</div><div><b>${st.parse_repaired + st.parse_scavenged}</b>verdicts repaired</div>`;
-  $('#claimCount').textContent = `${st.claims} claims · ${st.llm_calls} model calls · ${(st.ms / 1000).toFixed(0)}s`;
+function renderScore() {
+  const st = S.result.stats, all = S.result.claims; const n = all.filter(flagged).length;
+  const pct = k => (100 * k / Math.max(1, all.length)).toFixed(1) + '%';
+  $('#rScore').innerHTML = `<div class="big">${n}<small>of ${all.length} claims flagged</small></div>
+    <div class="bar"><span style="width:${pct(st.supported)};background:var(--ok)"></span><span style="width:${pct(st.partial)};background:var(--warn)"></span><span style="width:${pct(st.unsupported + st.contradicted)};background:var(--bad)"></span></div>
+    <div class="legend"><span><i style="background:var(--ok)"></i>${st.supported} supported</span><span><i style="background:var(--warn)"></i>${st.partial} partly</span><span><i style="background:var(--bad)"></i>${st.unsupported} unsupported</span><span><i style="background:var(--bad)"></i>${st.contradicted} contradicted</span></div>
+    <div class="foot">${st.llm_calls} model calls · ${(st.ms / 1000).toFixed(0)}s · ${st.parse_repaired + st.parse_scavenged} verdicts needed repair</div>`;
+  $('#claimCount').textContent = `${all.length} claims`;
 }
-function renderOp() { $('#opToggle').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.op === S.op)); }
-$('#opToggle').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.op = b.dataset.op; localStorage.setItem('gavel.op', S.op); renderOp(); renderStats(); renderClaims(); };
+$('#sensitive').onchange = e => { S.sensitive = e.target.checked; localStorage.setItem('gavel.sensitive', S.sensitive ? '1' : '0'); renderScore(); renderClaims(); };
 $('#onlyFlagged').onchange = e => { S.onlyFlagged = e.target.checked; renderClaims(); };
 $('#followAudio').onchange = e => { S.follow = e.target.checked; };
 
@@ -107,7 +115,7 @@ function renderTurns() {
   for (const t of S.result.turns) {
     const d = el('div', 'turn'); d.dataset.id = t.id;
     d.innerHTML = `<div class="turn-meta">${t.speaker ? `<span class="spk">${esc(t.speaker)}</span>` : ''}<span>${fmt(t.start)}</span></div><p>${esc(t.text)}</p>`;
-    d.onclick = () => seek(t.start);
+    d.onclick = () => seek(t.start, true);
     box.appendChild(d);
   }
 }
@@ -116,77 +124,77 @@ function renderClaims() {
   const turns = S.result.turns;
   for (const c of [...S.userClaims, ...S.result.claims]) {
     const isF = flagged(c); if (S.onlyFlagged && !isF) continue;
-    const d = el('div', 'claim' + (isF ? ' flagged' : '') + (c.user ? ' user' : '') + (S.selected === c.id ? ' selected' : '')); d.dataset.id = c.id;
+    const [lbl, cls] = LABEL[c.support] || ['Unknown', 'neutral'];
+    const d = el('div', 'claim' + (isF ? ' flagged' : c.support === 'PARTIALLY_SUPPORTED' ? ' partial' : '') + (c.user ? ' user' : '') + (S.selected === c.id ? ' selected' : '')); d.dataset.id = c.id;
     const ev = c.evidence.map(i => turns[i]).filter(Boolean);
     const at = ev.length ? fmt(ev[0].start) : (c.candidates.length ? fmt(turns[c.candidates[0]].start) : '');
     d.innerHTML = `
-      <div class="meta"><span>${c.user ? 'YOUR CLAIM' : 'CLAIM ' + String(c.id).padStart(2, '0')}</span>${c.speaker ? `<span>${esc(c.speaker).toUpperCase()}</span>` : ''}<span>${at ? 'AT ' + at : ''}</span>${c.parse !== 'strict' ? `<span>PARSE ${c.parse.toUpperCase()}</span>` : ''}</div>
+      <div class="label"><b>${c.user ? 'Your claim' : 'Claim ' + c.id}</b>${c.speaker ? `<span>· ${esc(c.speaker)}</span>` : ''}${at ? `<span>· at ${at}</span>` : ''}</div>
       <p class="text">${esc(c.text)}</p>
-      <div class="badges">
-        ${isF ? '<span class="badge flag">FLAGGED</span>' : ''}
-        <span class="badge ${c.support}">${c.support.replace('_', ' ')}</span>
-        <span class="badge">${c.severity}</span>
-        <span class="badge">SCORE ${c.score.toFixed(2)}</span>
-        ${c.attribution_ok === false ? '<span class="badge attr">MISATTRIBUTED</span>' : c.attribution_ok === true ? '<span class="badge attr">ATTRIBUTION OK</span>' : ''}
+      <div class="pills">
+        ${isF ? '<span class="pill bad">Flagged</span>' : ''}
+        <span class="pill ${cls}">${lbl}</span>
+        ${c.severity !== 'NONE' ? `<span class="pill neutral">${c.severity === 'MAJOR' ? 'Major issue' : 'Minor issue'}</span>` : ''}
+        ${c.attribution_ok === false ? '<span class="pill bad">Wrong speaker</span>' : c.attribution_ok === true ? '<span class="pill info">Speaker confirmed</span>' : ''}
+        ${c.parse !== 'strict' ? '<span class="pill neutral">verdict repaired</span>' : ''}
       </div>
-      ${c.why ? `<p class="why"><span class="mono" style="font-size:10px;letter-spacing:.12em;color:var(--muted)">JUDGE RATIONALE</span><br>${esc(c.why)}</p>` : ''}
+      ${c.why ? `<p class="why"><b>Why:</b> ${esc(c.why)}</p>` : ''}
       ${c.quote ? `<p class="quote">"${esc(c.quote)}"</p>` : ''}
-      <button class="ev-btn" type="button">${ev.length ? 'HEAR EVIDENCE' : 'HEAR NEAREST PASSAGE'} ▸</button>`;
+      <button class="ev-btn" type="button">${ev.length ? 'Play the evidence' : 'Play the nearest passage'} ▸</button>`;
     d.onclick = e => { select(c.id); if (e.target.closest('.ev-btn')) playEvidence(c); };
     box.appendChild(d);
   }
+  if (!box.children.length) box.innerHTML = '<p style="padding:20px;color:var(--muted);font-size:14px">Nothing flagged at this setting. Turn on "Also flag partial support" to see borderline claims.</p>';
 }
 function select(id) {
   S.selected = id;
   document.querySelectorAll('.claim').forEach(x => x.classList.toggle('selected', +x.dataset.id === id));
   const c = [...S.userClaims, ...S.result.claims].find(x => x.id === id); if (!c) return;
   const evSet = new Set(c.evidence.length ? c.evidence : c.candidates.slice(0, 1));
-  document.querySelectorAll('.turn').forEach(t => { const tid = +t.dataset.id; t.classList.toggle('evidence', evSet.has(tid)); t.classList.toggle('primary', tid === (c.evidence[0] ?? c.candidates[0])); });
+  const primary = c.evidence[0] ?? c.candidates[0];
+  document.querySelectorAll('.turn').forEach(t => { const tid = +t.dataset.id; t.classList.toggle('evidence', evSet.has(tid)); t.classList.toggle('primary', tid === primary); });
   const first = document.querySelector('.turn.primary'); if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
-function playEvidence(c) { const turns = S.result.turns; const t = turns[c.evidence[0] ?? c.candidates[0]]; if (t) seek(t.start, true); }
+function playEvidence(c) { const t = S.result.turns[c.evidence[0] ?? c.candidates[0]]; if (t) seek(t.start, true); }
 
-/* ---------- player ---------- */
+/* player */
 function setupPlayer() {
   const box = $('#player'); box.innerHTML = '';
   if (S.player) { try { S.player.destroy(); } catch {} S.player = null; S.playerReady = false; }
   clearInterval(S.tick);
-  if (S.result.source.kind !== 'youtube') { box.innerHTML = '<div style="padding:18px;color:var(--muted);font-family:var(--mono);font-size:12px">Pasted transcript: no audio. Timestamps are from the file or estimated at 155 wpm.</div>'; box.style.aspectRatio = 'auto'; return; }
-  box.style.aspectRatio = '16/9';
+  if (S.result.source.kind !== 'youtube') { box.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:13px;background:var(--surface2)">No audio for a pasted transcript. Timestamps come from the file, or are estimated at 155 words per minute.</div>'; box.style.aspectRatio = 'auto'; box.style.background = 'transparent'; return; }
+  box.style.aspectRatio = '16/9'; box.style.background = '#000';
   const mount = el('div'); box.appendChild(mount);
-  const make = () => { S.player = new YT.Player(mount, { videoId: S.result.source.id, playerVars: { rel: 0, modestbranding: 1 }, events: { onReady: () => { S.playerReady = true; }, onStateChange: () => {} } }); S.tick = setInterval(followTick, 500); };
+  const make = () => { S.player = new YT.Player(mount, { videoId: S.result.source.id, playerVars: { rel: 0, modestbranding: 1 }, events: { onReady: () => { S.playerReady = true; } } }); S.tick = setInterval(followTick, 500); };
   if (window.YT && YT.Player) make(); else window.onYouTubeIframeAPIReady = make;
 }
-function seek(sec, play = false) {
-  if (!S.player || !S.playerReady) return;
-  S.player.seekTo(Math.max(0, sec - 0.5), true); if (play) S.player.playVideo();
-}
+function seek(sec, play = false) { if (!S.player || !S.playerReady) return; S.player.seekTo(Math.max(0, sec - 0.5), true); if (play) S.player.playVideo(); }
 function followTick() {
   if (!S.follow || !S.player || !S.playerReady || !S.result) return;
   let t; try { t = S.player.getCurrentTime(); } catch { return; }
-  const turns = S.result.turns; let cur = null;
-  for (const x of turns) { if (x.start <= t) cur = x; else break; }
+  let cur = null; for (const x of S.result.turns) { if (x.start <= t) cur = x; else break; }
   document.querySelectorAll('.turn').forEach(d => d.classList.toggle('playing', cur && +d.dataset.id === cur.id));
   if (cur && S.player.getPlayerState && S.player.getPlayerState() === 1) { const d = document.querySelector('.turn.playing'); if (d && !isVisible(d, $('#turns'))) d.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 }
 function isVisible(elm, scroller) { const a = elm.getBoundingClientRect(), b = scroller.getBoundingClientRect(); return a.top >= b.top && a.bottom <= b.bottom; }
 
-/* ---------- keyboard ---------- */
+/* keyboard */
 document.addEventListener('keydown', e => {
   if (!S.result || e.target.matches('input,textarea')) return;
   const vis = [...S.userClaims, ...S.result.claims].filter(c => !S.onlyFlagged || flagged(c)); if (!vis.length) return;
   const idx = vis.findIndex(c => c.id === S.selected);
-  if (e.key === 'j' || e.key === 'J') { const n = vis[Math.min(vis.length - 1, idx + 1)]; select(n.id); document.querySelector(`.claim[data-id="${n.id}"]`)?.scrollIntoView({ block: 'nearest' }); }
-  else if (e.key === 'k' || e.key === 'K') { const n = vis[Math.max(0, idx - 1)]; select(n.id); document.querySelector(`.claim[data-id="${n.id}"]`)?.scrollIntoView({ block: 'nearest' }); }
+  const go = n => { select(n.id); document.querySelector(`.claim[data-id="${n.id}"]`)?.scrollIntoView({ block: 'nearest' }); };
+  if (e.key === 'j' || e.key === 'J') go(vis[Math.min(vis.length - 1, idx + 1)]);
+  else if (e.key === 'k' || e.key === 'K') go(vis[Math.max(0, idx - 1)]);
   else if (e.key === 'e' || e.key === 'E') { const c = vis[idx]; if (c) playEvidence(c); }
   else if (e.key === ' ' && S.player && S.playerReady) { e.preventDefault(); S.player.getPlayerState() === 1 ? S.player.pauseVideo() : S.player.playVideo(); }
 });
 
-/* ---------- check your own claim ---------- */
+/* check your own claim */
 $('#checkForm').onsubmit = async e => {
   e.preventDefault(); if (!S.result) return;
   const text = $('#checkInput').value.trim(); if (text.length < 8) return;
-  const btn = $('#checkGo'); btn.disabled = true; btn.textContent = 'JUDGING';
+  const btn = $('#checkGo'); btn.disabled = true; btn.textContent = 'Judging';
   const headers = { 'content-type': 'application/json' }; const key = localStorage.getItem('gavel.key'); if (key) headers['x-gemini-key'] = key;
   try {
     const r = await fetch('/api/check', { method: 'POST', headers, body: JSON.stringify({ id: S.result.source.id, claim: text }) });
@@ -194,7 +202,7 @@ $('#checkForm').onsubmit = async e => {
     if (!r.ok) { alert(j.error || 'Check failed'); return; }
     j.user = true; j.id = -(S.userClaims.length + 1);
     S.userClaims.unshift(j); $('#checkInput').value = '';
-    renderClaims(); select(j.id);
+    renderClaims(); select(j.id); $('#claims').scrollTop = 0;
   } catch (err) { alert('Check failed: ' + err.message); }
-  finally { btn.disabled = false; btn.textContent = 'VERIFY'; }
+  finally { btn.disabled = false; btn.textContent = 'Verify'; }
 };

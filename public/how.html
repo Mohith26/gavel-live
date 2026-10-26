@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Gavel Live works</title>
+<meta name="description" content="How Gavel Live turns a recording into a claim-by-claim report, finds the evidence for each claim, judges it, and why the flag threshold matters more than the model.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="mark"></span><span>Gavel <em>Live</em></span></a>
+  <nav>
+    <a href="/how" class="active">How it works</a>
+    <a href="https://mohithgajjela.com/field-03-gavel" target="_blank" rel="noopener">The benchmark</a>
+    <a href="https://github.com/Mohith26/gavel-live" target="_blank" rel="noopener">Code</a>
+  </nav>
+</header>
+
+<main>
+  <section class="how-hero">
+    <span class="eyebrow">How it works</span>
+    <h1>A summary you can audit, one sentence at a time.</h1>
+    <p class="lede">A summary can sound right and still be wrong: the wrong speaker, a dropped "maybe", a number that was never said. Gavel does not grade how a summary <em>sounds</em>. It checks whether each sentence is actually in the recording, and shows you the passage.</p>
+  </section>
+
+  <div class="flow">
+    <div class="node" style="animation-delay:0ms"><span class="n">1</span><h4>Transcript</h4><p>Captions are fetched from YouTube (or pasted) and cut into short passages of 20 to 45 seconds, ending at sentence boundaries.</p></div>
+    <div class="node" style="animation-delay:80ms"><span class="n">2</span><h4>Claims</h4><p>A model writes 6 to 20 standalone sentences that cover the whole recording, keeping names, numbers and hedges exactly as spoken.</p></div>
+    <div class="node" style="animation-delay:160ms"><span class="n">3</span><h4>Evidence</h4><p>For each claim, a search over the passages picks the five most likely sources. Only those five are shown to the judge.</p></div>
+    <div class="node" style="animation-delay:240ms"><span class="n">4</span><h4>Verdict</h4><p>A judge model reads the claim and its five passages and answers: supported, partly, not supported, or contradicted, plus who said it and a quote.</p></div>
+    <div class="node" style="animation-delay:320ms"><span class="n">5</span><h4>Flag</h4><p>A fixed rule decides which verdicts to flag. You can see the trade-off on the toggle: the rule matters more than the model.</p></div>
+  </div>
+
+  <section class="how-section">
+    <h2>A worked example</h2>
+    <p class="sub">From Andrej Karpathy's "Let's build GPT". The claim on the right was typed into the "check a claim of your own" box. Gavel found the passages on the left and returned the verdict.</p>
+    <div class="example">
+      <div class="ex-box">
+        <h5>Passages the search picked</h5>
+        <div class="ex-turn"><span class="t">3:45</span><span>... I propose that we work with my favorite toy data set, it's called tiny Shakespeare, it's a concatenation of <mark>all of the works of Shakespeare</mark> in a single file, about 1 megabyte ...</span></div>
+        <div class="ex-turn hit"><span class="t">1:22:10</span><span>... so we're down at about <mark>2.5</mark>, the loss is improving ... let's see what we get ... okay dramatic improvements ...</span></div>
+        <div class="ex-turn hit"><span class="t">1:40:08</span><span>... we actually get down all the way to <mark>2.08 validation loss</mark> ... and later with the full model about <mark>1.48</mark> ...</span></div>
+      </div>
+      <div class="ex-box">
+        <h5>The claim and the verdict</h5>
+        <div class="claim user" style="box-shadow:inset 4px 0 0 var(--warn);border:0;padding:12px;border-radius:8px;cursor:default">
+          <div class="label"><b>Your claim</b><span>· at 3:45</span></div>
+          <p class="text">Karpathy says the model is trained on the complete works of Shakespeare and reaches a validation loss of 0.9.</p>
+          <div class="pills"><span class="pill partial">Partly supported</span><span class="pill neutral">Major issue</span><span class="pill info">Speaker confirmed</span></div>
+          <p class="why"><b>Why:</b> Karpathy does state it is trained on all the works of Shakespeare, but the evidence shows the validation loss is around 2.5, not 0.9.</p>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin:12px 0 0">Half true, half invented. The judge split it, named the real number, and pointed at the passage. With "also flag partial support" on, this is flagged; with it off, it is not. That is the whole point of the toggle.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="how-section">
+    <h2>Eight ways a sentence can be wrong</h2>
+    <p class="sub">These are the error types the judge was measured on. Gavel's benchmark took 383 sentences that were true by construction, planted exactly one of these errors into 681 copies, and checked whether the judge caught them. The one that matters most for spoken recordings is the first: text alone cannot tell you who said something.</p>
+    <div class="classes">
+      <div class="cls"><h4>Wrong speaker</h4><p class="before">Justice Kagan asked whether...</p><p class="after"><mark>Justice Alito</mark> asked whether...</p><div class="tag">Caught 98% of the time</div></div>
+      <div class="cls"><h4>Flipped negation</h4><p class="before">...the statute does not apply.</p><p class="after">...the statute <mark>applies</mark>.</p><div class="tag">Caught 97%</div></div>
+      <div class="cls"><h4>Changed number</h4><p class="before">...reached a loss of 1.48.</p><p class="after">...reached a loss of <mark>0.9</mark>.</p><div class="tag">Caught 87%</div></div>
+      <div class="cls"><h4>Swapped parties</h4><p class="before">The petitioner argued...</p><p class="after">The <mark>respondent</mark> argued...</p><div class="tag">Caught 70%</div></div>
+      <div class="cls"><h4>Dropped hedge</h4><p class="before">...this might reduce costs.</p><p class="after">...this <mark>reduces</mark> costs.</p><div class="tag">Caught 94%</div></div>
+      <div class="cls"><h4>Reworded quote</h4><p class="before">"we need a smaller data set"</p><p class="after">"<mark>we want less data</mark>"</p><div class="tag">Caught 100% (small sample)</div></div>
+      <div class="cls"><h4>Flipped outcome</h4><p class="before">The court affirmed.</p><p class="after">The court <mark>reversed</mark>.</p><div class="tag">Caught 82%</div></div>
+      <div class="cls"><h4>Made up</h4><p class="before">(nothing in the recording)</p><p class="after"><mark>The speaker cites a 2019 study showing...</mark></p><div class="tag">Caught 100%</div></div>
+    </div>
+  </section>
+
+  <section class="how-section">
+    <h2>The threshold matters more than the model</h2>
+    <p class="sub">The judge gives every claim one of four verdicts. Which of those you treat as a flag is a choice, and it changes the numbers more than switching models did. Both settings below use the same verdicts, measured on the 1,064-claim benchmark.</p>
+    <div class="op-grid">
+      <div class="op">
+        <h4>Default: flag only clear problems</h4>
+        <p class="d">Flags "not supported", "contradicted", and "wrong speaker". Almost never flags a correct claim.</p>
+        <div class="meter"><span>Precision</span><div class="track"><div class="fill ok" data-w="99.7"></div></div><span class="v">0.997</span></div>
+        <div class="meter"><span>False alarms</span><div class="track"><div class="fill bad" data-w="0.3"></div></div><span class="v">0.3%</span></div>
+        <div class="meter"><span>Errors caught</span><div class="track"><div class="fill info" data-w="44"></div></div><span class="v">44%</span></div>
+      </div>
+      <div class="op">
+        <h4>"Also flag partial support"</h4>
+        <p class="d">Adds "partly supported" to the flag set. Catches almost everything, and flags most correct claims too.</p>
+        <div class="meter"><span>Precision</span><div class="track"><div class="fill ok" data-w="71"></div></div><span class="v">0.71</span></div>
+        <div class="meter"><span>False alarms</span><div class="track"><div class="fill bad" data-w="72"></div></div><span class="v">72%</span></div>
+        <div class="meter"><span>Errors caught</span><div class="track"><div class="fill info" data-w="97"></div></div><span class="v">97%</span></div>
+      </div>
+    </div>
+    <div class="callout">If you are skimming a lecture, use the default: anything flagged is worth a look. If you are checking a summary before you rely on it, turn the toggle on and read the partly-supported ones yourself.</div>
+  </section>
+
+  <section class="how-section">
+    <h2>Choices that came from the benchmark</h2>
+    <p class="sub">Gavel Live is the product end of a benchmark that was built first. A few decisions only make sense in that light.</p>
+    <div class="limits">
+      <div class="ex-box"><h5>Keyword search, no embeddings</h5><p>The evidence search is BM25, a classic keyword ranker, and nothing else. In the benchmark, adding a dense vector search did not improve results (F1 0.83 vs 0.81), so there is no vector index to run or pay for.</p></div>
+      <div class="ex-box"><h5>A forgiving parser</h5><p>The first version of the benchmark silently threw away 75% of the judge's answers because of a formatting quirk, and defaulted their severity. The parser now repairs and salvages responses, and every verdict records whether it needed repair. You see that count on each result.</p></div>
+      <div class="ex-box"><h5>The judge only sees five passages</h5><p>That keeps verdicts cheap and traceable: every "why" points at a passage you can play. It also means the judge cannot see what a summary <em>left out</em>. Omissions are the next thing to measure.</p></div>
+    </div>
+  </section>
+
+  <section class="how-section">
+    <h2>What it cannot do yet</h2>
+    <div class="limits">
+      <div class="ex-box"><h5>Speakers</h5><p>Auto-generated captions have no speaker names, so "who said it" is only checked when the transcript names them (pasted transcripts can).</p></div>
+      <div class="ex-box"><h5>Omissions</h5><p>A claim can only be judged if it exists. If the report never mentions something important, nothing flags that. A coverage check is planned.</p></div>
+      <div class="ex-box"><h5>Not advice</h5><p>Verdicts are about whether the recording supports a sentence, not whether the sentence is true in the world. Not medical, legal or financial advice.</p></div>
+    </div>
+    <p style="margin-top:28px"><a class="btn" href="/">Try it on a video</a></p>
+  </section>
+</main>
+
+<footer>
+  <span>Gavel Live by <a href="https://mohithgajjela.com">Mohith Gajjela</a>. Benchmark numbers are from the <a href="https://mohithgajjela.com/field-03-gavel">Gavel write-up</a>.</span>
+  <span><a href="https://github.com/Mohith26/gavel">Benchmark code</a> · <a href="https://github.com/Mohith26/gavel-live">Live tool code</a></span>
+</footer>
+<script>
+  // animate the meters once visible
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.querySelectorAll('.fill').forEach(f => f.style.width = f.dataset.w + '%'); io.unobserve(e.target); } }), { threshold: .3 });
+  document.querySelectorAll('.op').forEach(o => io.observe(o));
+</script>
+</body>
+</html>

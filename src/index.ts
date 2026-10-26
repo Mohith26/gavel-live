@@ -66,6 +66,10 @@ export default {
       return analyze(req, env, ctx);
     }
 
+    if (p === '/how' || p === '/how/') {
+      const r = await env.ASSETS.fetch(new Request(new URL('/how.html', req.url), { headers: req.headers }));
+      return new Response(r.body, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } });
+    }
     // share links: /v/<id> serves the app shell; the client fetches /api/result/<id>
     if (p.startsWith('/v/')) {
       const r = await env.ASSETS.fetch(new Request(new URL('/', req.url), { headers: req.headers }));
